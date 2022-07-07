@@ -38,7 +38,7 @@ namespace Analisador_Léxico
 
         private static List<Pattern> Delimiter(string input)
         {
-            Regex DelimiterRegex = new Regex("[\\(\\)\\{\\}\' '\t\f\r\n]+");
+            Regex DelimiterRegex = new Regex(@"[\\}\\{\\)\\(\n\f\r\t]+");
             List<Pattern> lista = new List<Pattern>();
 
             lista = DelimiterRegex.Matches(input)
@@ -100,8 +100,11 @@ namespace Analisador_Léxico
             Regex ConditionalNotEqualRegex = new Regex("\\<>");
             Regex ConditionalBiggerEqualRegex = new Regex("\\>=");
             Regex ConditionalSmallerEqualRegex = new Regex("\\<=");
-            Regex ConditionalSmallerRegex = new Regex("\\<");
-            Regex ConditionalBiggerRegex = new Regex("\\>");
+            Regex ConditionalSmallerRegex = new Regex("\\<[^=]");
+            Regex ConditionalBiggerRegex = new Regex("\\>[^=]");
+
+            var ConditionalORRegex = new string[] { "||" };
+            Regex ConditionalANDRegex = new Regex("\\&&");
 
             List<Pattern> lista = new List<Pattern>();
 
@@ -135,48 +138,76 @@ namespace Analisador_Léxico
                 .Select(m => new Pattern { Lexema = "OP_BG", Token = m.Value })
                 .ToList());
 
+            lista.AddRange(ConditionalANDRegex.Matches(input)
+                .Cast<Match>()
+                .Select(m => new Pattern { Lexema = "OP_AND", Token = m.Value })
+                .ToList());
+
+            foreach (var item in ConditionalORRegex)
+            {
+                if (input.Contains(item))
+                {
+                    lista.Add(new Pattern { Lexema = "OP_OR", Token = item });
+                    break;
+                }
+            }
+
             return lista;
         }
 
         private static List<Pattern> Desvio(string input)
         {
-            Regex DesvioIFVRegex = new Regex("\bif\b");
-            Regex DesvioELSERegex = new Regex("elseElseELSE");
+            var DesvioIFRegex = new string[] { "if","IF","If"};
+
+            var DesvioELSERegex = new string[] { "else","Else","ELSE" };
 
             List<Pattern> lista = new List<Pattern>();
 
-            lista.AddRange(DesvioIFVRegex.Matches(input)
-                .Cast<Match>()
-                .Select(m => new Pattern { Lexema = "CMD_IF", Token = m.Value })
-                .ToList());
+            foreach (var item in DesvioIFRegex)
+            {
+                if (input.Contains(item)) {
+                    lista.Add(new Pattern { Lexema = "CMD_IF", Token = item });
+                    break;
+                }
+            }
 
-            lista.AddRange(DesvioELSERegex.Matches(input)
-                .Cast<Match>()
-                .Select(m => new Pattern { Lexema = "CMD_ELSE", Token = m.Value })
-                .ToList());
 
-            
+            foreach (var item in DesvioELSERegex)
+            {
+                if (input.Contains(item)) { 
+                    lista.Add(new Pattern { Lexema = "CMD_ELSE", Token = item });
+                    break;
+                }
+            }
+
 
             return lista;
         }
 
         private static List<Pattern> Repetition(string input)
         {
-            Regex RepetitionWhileRegex = new Regex("[WhileWHILEwhile]+");
-            Regex RepetitionForRegex = new Regex("[ForforFOR]+");
+            var RepetitionWhileRegex = new string[] { "while", "WHILE", "While" };
+            var RepetitionForRegex = new string[] { "for", "For", "FOR" };
 
             List<Pattern> lista = new List<Pattern>();
 
-            lista.AddRange(RepetitionWhileRegex.Matches(input)
-                .Cast<Match>()
-                .Select(m => new Pattern { Lexema = "CMD_WHILE", Token = m.Value })
-                .ToList());
+            foreach (var item in RepetitionForRegex)
+            {
+                if (input.Contains(item))
+                {
+                    lista.Add(new Pattern { Lexema = "CMD_FOR", Token = item });
+                    break;
+                }
+            }
 
-            lista.AddRange(RepetitionForRegex.Matches(input)
-                .Cast<Match>()
-                .Select(m => new Pattern { Lexema = "CMD_FOR", Token = m.Value })
-                .ToList());
-
+            foreach (var item in RepetitionWhileRegex)
+            {
+                if (input.Contains(item))
+                {
+                    lista.Add(new Pattern { Lexema = "CMD_WHILE", Token = item });
+                    break;
+                }
+            }
 
 
             return lista;
@@ -187,12 +218,37 @@ namespace Analisador_Léxico
             List<Pattern> result = new List<Pattern>();
 
             result.AddRange(Numbers(input));
+            
             result.AddRange(Conditional(input));
-            //result.AddRange(Repetition(input));
-            //result.AddRange(Desvio(input));
+            foreach (var item in result.Select(x => x.Token).ToArray())
+            {
+                input = input.Replace(item, "");
+            }
+            result.AddRange(Repetition(input));
+            foreach (var item in result.Select(x => x.Token).ToArray())
+            {
+                input.Replace(item, "");
+            }
+            result.AddRange(Desvio(input));
+            foreach (var item in result.Select(x => x.Token).ToArray())
+            {
+                input = input.Replace(item, "");
+            }
             result.AddRange(Words(input));
+            foreach (var item in result.Select(x => x.Token).ToArray())
+            {
+                input = input.Replace(item, "");
+            }
             result.AddRange(Delimiter(input));
+            foreach (var item in result.Select(x => x.Token).ToArray())
+            {
+                input = input.Replace(item, "");
+            }
             result.AddRange(Attribution(input));
+            foreach (var item in result.Select(x => x.Token).ToArray())
+            {
+                input = input.Replace(item, "");
+            }
             result.AddRange(Operators(input));
 
             return result;
