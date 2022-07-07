@@ -10,7 +10,7 @@
     <form id="form1" runat="server">
         <div>
             <br/><br/>
-            <asp:TextBox ID="TextBox1" runat="server" OnTextChanged="Texto_TextChanged" AutoPostBack="true" Width="334px"></asp:TextBox><br/>
+            <asp:TextBox ID="TextBox1" runat="server" OnTextChanged="Texto_TextChanged" AutoPostBack="true" Width="478px" TextMode="MultiLine" Height="276px"></asp:TextBox><br/>
            
             <br/>
             <asp:GridView ID="ListPadroes" runat="server" AutoGenerateColumns="true" BackColor="White" BorderColor="#999999" BorderStyle="Solid" BorderWidth="1px" CellPadding="3" ForeColor="Black" GridLines="Vertical" Width="343px">
