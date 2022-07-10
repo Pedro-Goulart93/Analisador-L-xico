@@ -12,27 +12,95 @@ namespace Analisador_Léxico
 
         public int Ordem { get; set; }
 
+        public bool Aceito { get; set; }
+
+        public string Erro { get; set; }
+
         public static List<Pattern> patterns = new List<Pattern>();
 
-        private static bool Numbers(string input)
+        private static void Validador(List<Pattern> input)
         {
-            Regex NumbersRegex = new Regex("\\d+(\\.\\d+)?");
-            List<Pattern> lista = new List<Pattern>();
+            string[] delimDiscard = { "New Line", "TAB", "Form Feed"};
+            string[] delimValid = { "(", "{" };
 
-            lista = NumbersRegex.Matches(input)
-                .Cast<Match>()
-                .Select(m => new Pattern { Lexema = "NUM", Token = m.Value, Ordem = patterns.Count() + 1 })
-                .ToList();
-
-            if (lista.Count() > 0)
+            var listLexema = input.Where(x => !delimDiscard.Contains(x.Token)).OrderBy(x => x.Ordem).ToList();
+            for (int i = 0; i < listLexema.Count(); i++)
             {
-                patterns.AddRange(lista);
-                return true;
+                switch (listLexema[i].Lexema)
+                {
+                    case "ID":
+                        if(i == 0)
+                        {
+                            listLexema[i].Aceito = true;
+                        }
+                        else if (delimValid.Contains(listLexema[i -1].Token) || listLexema[i - 1].Token == "=" 
+                                || listLexema[i - 1].Token.Contains("OP") )
+                        {
+                            listLexema[i].Aceito = true;
+                        }
+                        else
+                        {
+                            listLexema[i].Aceito = false;
+                            listLexema[i].Erro = "Erro Sintático na sentença. Ordem:" + listLexema[i].Ordem +
+                                                ". Texto:" + listLexema[i].Token + ".";
+                        }
+                        break;
+                    case "CMD_IF":
+                        if (i == 0)
+                        {
+                            listLexema[i].Aceito = true;
+                        }
+                        else if (!delimValid.Contains(listLexema[i - 1].Token) || listLexema[i - 1].Token != "="
+                                || !listLexema[i - 1].Token.Contains("OP"))
+                        {
+                            i++;
+                            if(ProximoEstado(i, listLexema, delimValid))
+                            {
+
+                            }
+
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        private static bool ProximoEstado(int i, List<Pattern> listPatterns, string[] delimValid) {
+            for (int c = i; c < listPatterns.Count(); c++)
+            {
+                switch (listPatterns[c].Lexema)
+                {
+                    case "(":
+                        if (listPatterns[c -1].Lexema == "CMD_IF")
+                        {
+                            listPatterns[c].Aceito = true;
+
+                        }
+                        else
+                        {
+                            listPatterns[c].Aceito = false;
+                            listPatterns[c].Erro = "Erro Sintático na sentença. Ordem:" + listPatterns[c].Ordem +
+                                                ". Texto:" + listPatterns[c].Token + ".";
+                        }
+                        break;
+                    case "}":
+                        if (delimValid.Contains(listLexema[i - 1].Token) || listLexema[i - 1].Token == "ID"
+                                || listLexema[i - 1].Token == ")" || listLexema[i - 1].Lexema == "NUM")
+                        {
+                            listPatterns[c].Aceito = true;
+                            return true;
+                        }
+                            break;
+                    default:
+                        break;
+
+                }
+                i++;
             }
 
             return false;
         }
-
         private static void Tokens(string input)
         {
             Regex WordsRegex = new Regex("[A-Za-z]+");
@@ -74,7 +142,7 @@ namespace Analisador_Léxico
                         else
                         {
                             word = "";
-                            index = i + 1;
+                            index = length + index;
                             length = 0;
                         }
                     }
@@ -82,32 +150,28 @@ namespace Analisador_Léxico
                     {
                         patterns.Add(new Pattern { Lexema = "ID", Token = word, Ordem = patterns.Count() + 1 });
                         word = "";
-                        index = i + 1;
+                        index = length + index;
                         length = 0;
                     }
                 }
+                string auxText = "";
                 if(text == "=")
                 {
-                    var auxText = input.Substring(index, length + 1);
+                    auxText = input.Substring(index, length + 1);
                     if (auxText == "==")
                     {
                         Conditional(auxText);
-                        index = i + 2;
+                        index = length + index + 1;
                         length = 0;
                     }
                     else
                     {
                         Attribution(text);
-                        index = i + 1;
+                        index = length + index;
                         length = 0;
                     }
                 }
-                if (Delimiter(text) || Operators(text) || Conditional(text))
-                {
-                    index = i + 1;
-                    length = 0;
-                }
-
+                
                 //Verifica se possui numero na entrada
                 var tamNumber = extractNumber != null ? extractNumber.Length : 0;
 
@@ -129,12 +193,18 @@ namespace Analisador_Léxico
                     {
                         patterns.Add(new Pattern { Lexema = "NUM", Token = number, Ordem = patterns.Count() + 1 });
                         number = "";
-                        index = i + 1;
+                        index = length + index;
                         length = 0;
                     }
                     
                 }
-                
+                if (Delimiter(text) || Operators(auxText != "" ? auxText:text) || Conditional(text))
+                {
+                   
+                    index = length + index;
+                                        
+                    length = 0;
+                }
 
                 length++;
             }
@@ -143,12 +213,14 @@ namespace Analisador_Léxico
 
         private static bool Delimiter(string input)
         {
-            Regex DelimiterRegex = new Regex(@"[\\}\\{\\)\\(\n\f\r\t]+");
+            Regex DelimiterRegex = new Regex(@"[\\}\\{\\)\\(\n\f\t]+");
             List<Pattern> lista = new List<Pattern>();
-
+            string[] especiais = { "\n", "\f", "\r", "\t" };
+            List<IdentifyDelimiter> identifies = IdentifyDelimiter.List();
             lista = DelimiterRegex.Matches(input)
                 .Cast<Match>()
-                .Select(m => new Pattern { Lexema = "DELIM", Token = m.Value, Ordem = patterns.Count() + 1 })
+                .Select(m => new Pattern { Lexema = "DELIM", Token = identifies.Where(x => x.Delimiter == m.Value).Count() > 0 ?
+                identifies.FirstOrDefault(x => x.Delimiter == m.Value).Identifier : m.Value, Ordem = patterns.Count() + 1 })
                 .ToList();
 
             if (lista.Count() > 0)
@@ -286,27 +358,26 @@ namespace Analisador_Léxico
 
         private static bool Desvio(string input)
         {
-            var DesvioIFRegex = new string[] { "if","IF","If"};
+            string DesvioIFRegex = "if";
 
-            var DesvioELSERegex = new string[] { "else","Else","ELSE" };
+            string DesvioELSERegex = "else"; 
+
 
             List<Pattern> lista = new List<Pattern>();
 
-            foreach (var item in DesvioIFRegex)
-            {
-                if (input.Contains(item)) {
-                    patterns.Add(new Pattern { Lexema = "CMD_IF", Token = item, Ordem = patterns.Count() + 1 });
-                    return true;
-                }
+           
+            if (input.Contains(DesvioIFRegex)) {
+                patterns.Add(new Pattern { Lexema = "CMD_IF", Token = input, Ordem = patterns.Count() + 1 });
+                return true;
             }
 
 
-            foreach (var item in DesvioELSERegex)
+
+
+            if (input.Contains(DesvioELSERegex))
             {
-                if (input.Contains(item)) {
-                    patterns.Add(new Pattern { Lexema = "CMD_ELSE", Token = item, Ordem = patterns.Count() + 1 });
-                    return true;
-                }
+                patterns.Add(new Pattern { Lexema = "CMD_ELSE", Token = input, Ordem = patterns.Count() + 1 });
+                return true;
             }
 
 
@@ -315,28 +386,26 @@ namespace Analisador_Léxico
 
         private static bool Repetition(string input)
         {
-            var RepetitionWhileRegex = new string[] { "while", "WHILE", "While" };
-            var RepetitionForRegex = new string[] { "for", "For", "FOR" };
+            string RepetitionWhileRegex =  "while";
+            string RepetitionForRegex = "for";
 
             List<Pattern> lista = new List<Pattern>();
 
-            foreach (var item in RepetitionForRegex)
+           
+            if (input.Contains(RepetitionWhileRegex))
             {
-                if (input.Contains(item))
-                {
-                    patterns.Add(new Pattern { Lexema = "CMD_FOR", Token = item, Ordem = patterns.Count() + 1 });
-                    return true;
-                }
+                patterns.Add(new Pattern { Lexema = "CMD_FOR", Token = input, Ordem = patterns.Count() + 1 });
+                return true;
             }
+            
 
-            foreach (var item in RepetitionWhileRegex)
+            
+            if (input.Contains(RepetitionForRegex))
             {
-                if (input.Contains(item))
-                {
-                    patterns.Add(new Pattern { Lexema = "CMD_WHILE", Token = item, Ordem = patterns.Count() + 1 });
-                    return true;
-                }
+                patterns.Add(new Pattern { Lexema = "CMD_WHILE", Token = input, Ordem = patterns.Count() + 1 });
+                return true;
             }
+            
 
 
             return false;
@@ -351,40 +420,18 @@ namespace Analisador_Léxico
             Tokens(input);
 
             result.AddRange(patterns);
-            //foreach (var item in result.Select(x => x.Token).ToArray())
-            //{
-            //    input = input.Replace(item, "");
-            //}
+            
+            return result;
+        }
 
-            //result.AddRange(Numbers(input));
+        public static List<Pattern> AnalisadorSintatico(List<Pattern> lexemas_tokens)
+        {
+            List<Pattern> result = new List<Pattern>();
             
-            //result.AddRange(Conditional(input));
-            //foreach (var item in result.Select(x => x.Token).ToArray())
-            //{
-            //    input = input.Replace(item, "");
-            //}
-            //result.AddRange(Repetition(input));
-            //foreach (var item in result.Select(x => x.Token).ToArray())
-            //{
-            //    input.Replace(item, "");
-            //}
-            //result.AddRange(Desvio(input));
-            //foreach (var item in result.Select(x => x.Token).ToArray())
-            //{
-            //    input = input.Replace(item, "");
-            //}
-            
-            //result.AddRange(Delimiter(input));
-            //foreach (var item in result.Select(x => x.Token).ToArray())
-            //{
-            //    input = input.Replace(item, "");
-            //}
-            //result.AddRange(Attribution(input));
-            //foreach (var item in result.Select(x => x.Token).ToArray())
-            //{
-            //    input = input.Replace(item, "");
-            //}
-            //result.AddRange(Operators(input));
+            //Valida entrada
+            Validador(lexemas_tokens);
+
+            result.AddRange(patterns);
 
             return result;
         }

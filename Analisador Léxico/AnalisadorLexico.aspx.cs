@@ -13,7 +13,8 @@ namespace Analisador_Léxico
         protected void Texto_TextChanged(object sender, EventArgs e)
         {
             var itens = Pattern.AnalisadorLexico(TextBox1.Text);
-            ListPadroes.DataSource = itens.ToList();
+            var itensSintaticamente = Pattern.AnalisadorSintatico(itens);
+            ListPadroes.DataSource = itensSintaticamente.ToList();
             ListPadroes.DataBind();
         }
     }
